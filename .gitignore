@@ -1,0 +1,6 @@
+build
+node_modules
+.aptos
+initialize.ts
+getKey.js
+getMnemonics
