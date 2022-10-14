@@ -47,6 +47,7 @@ class SDK {
         this.FEE_DIVISOR = 10000
         this.network = network
         this.pools = {}
+        this.cacheStorage = {}
     }
 
     static async createInstance(network, node_url, faucet_url, collectibleSwap, updatePool = true) {
@@ -71,7 +72,11 @@ class SDK {
     async updatePoolFromType(resourceType) {
         try {
             let pool = await this.wallet.aptosClient.getAccountResource(this.getPoolAddress(), resourceType)
-            await this.refactorPool(pool)
+            if (this.pools[pool.type]) {
+                pool = this.pools[pool.type]
+            } else {
+                await this.refactorPool(pool)
+            }
             this.pools[pool.type] = pool
             return pool
         } catch (e) {
@@ -630,6 +635,8 @@ class SDK {
     saveData(key, value) {
         if (this.isInBrowser()) {
             window.localStorage.setItem(`${this.network}-${key}`, value)
+        } else {
+            this.cacheStorage[`${this.network}-${key}`] = value
         }
     }
 
@@ -647,48 +654,43 @@ class SDK {
     }
 
     readPools() {
-        if (this.isInBrowser()) {
-            let pools = Object.entries(window.localStorage)
-                        .filter(([k, v]) => k.startsWith(`${this.network}-pool-`))
-                        .map(e => JSON.parse(e[1]))
-            pools.forEach(p => {
-                this.pools[p.type] = p
-            })
-            return this.pools
-        }
-
-        return {}
+        let objects = this.isInBrowser() ? Object.entries(window.localStorage) : Object.entries(this.cacheStorage)
+        let pools = objects
+            .filter(([k, v]) => k.startsWith(`${this.network}-pool-`))
+            .map(e => JSON.parse(e[1]))
+        pools.forEach(p => {
+            this.pools[p.type] = p
+        })
+        return this.pools
     }
 
     getData(key) {
         if (this.isInBrowser()) {
-            return window.localStorage.getItem(key)
-        } 
+            return window.localStorage.getItem(`${this.network}-${key}`)
+        } else {
+            return this.cacheStorage[`${this.network}-${key}`]
+        }
         return null
     }
 
     async checkForNewPools() {
-        let setting = await db.Setting.findOne({});
-        let start = setting ? setting.lastPoolCreatedEventUpdate : 0
+        let poolCreatedEventStart = this.getData(`poolCreatedEventStart`)
+        poolCreatedEventStart = poolCreatedEventStart ? parseInt(poolCreatedEventStart) : 0
 
-        let eventStore = `${networkConfig.collectibleSwap}::pool::NewPoolEventStore`
+        let eventStore = `${this.collectibleSwap}::pool::NewPoolEventStore`
 
-        let now = Math.floor(Date.now() / 1000)
+        console.log('poolCreatedEventStart', poolCreatedEventStart)
 
-        const poolCreatedEvents = await sdk.wallet.getEventStream(
-            sdk.getPoolAddress(),
+        const poolCreatedEvents = await this.wallet.getEventStream(
+            this.getPoolAddress(),
             eventStore,
             "pool_created_handle",
             null,
-            start
+            poolCreatedEventStart
         );
+        poolCreatedEventStart += poolCreatedEvents.length
 
         let resourceTypes = []
-
-        // devnet only
-        if (config.network == "devnet") {
-            resourceTypes.push(`0xd39111acba9f96a14150674b359d564e566f8057143a0593723fe753fc67c3b2::pool::Pool<0x1::aptos_coin::AptosCoin, 0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd::collection_type_clonex::CollectionTypeCloneX>`)
-        }
 
         for (const e of poolCreatedEvents) {
             //create simple pool
@@ -702,7 +704,7 @@ class SDK {
             structName = Buffer.from(collectionCoinTypeInfo.struct_name.replace("0x", ""), "hex").toString("utf8")
             let collectionCoinType = `${collectionCoinTypeInfo.account_address}::${moduleName}::${structName}`
 
-            let resourceType = `0x${sdk.getPoolAddress().replace("0x", "")}::pool::Pool<${coinType}, ${collectionCoinType}>`
+            let resourceType = `0x${this.collectibleSwap.replace("0x", "")}::pool::Pool<${coinType}, ${collectionCoinType}>`
             resourceTypes.push(resourceType)
         }
 
@@ -711,19 +713,17 @@ class SDK {
         await Promise.all(
             resourceTypes.map(async (resourceType) => {
                 console.log('updating', resourceType)
-                let pool = await sdk.updatePoolFromType(resourceType)
-                await db.SimplePool.updateOne(
-                    { resourceType: resourceType },
-                    {
-                        $set: {
-                            poolObject: pool,
-                            lastUpdate: now
-                        }
-                    },
-                    { upsert: true, new: true }
-                )
+                let pool = await this.updatePoolFromType(resourceType)
+                if (pool) {
+                    this.automatePoolUpdate(pool)
+                }
             })
         )
+
+        this.saveData(`poolCreatedEventStart`, poolCreatedEventStart)
+        setTimeout(() => {
+            this.checkForNewPools()
+        }, 20 * 1000)
     }
 }
 

@@ -15,7 +15,7 @@ async function main() {
     // //                             pools[0].data.coinType, 5)
     // console.log(pools[0]) 
     // console.log(pools[0].data.spot_price, pools[0].data.reserve)
-
+    await sdk.checkForNewPools()
     //updating pools
     sdk.automatePoolsUpdate()
     setInterval(() => {
