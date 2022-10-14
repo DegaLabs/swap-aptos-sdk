@@ -57,6 +57,13 @@ class SDK {
 
         if (Object.keys(instance.pools).length == 0) {
             await instance.updatePools();
+        } else {
+            let pools = Object.values(this.pools)
+            await Promise.all(
+                pools.map(async (p) => {
+                    await instance.updatePoolTokens(p)
+                })
+            )
         }
         return instance
     }
@@ -660,6 +667,7 @@ class SDK {
         pools.forEach(p => {
             this.pools[p.type] = p
         })
+        console.log("found", pools.length, "from local")
         return this.pools
     }
 
