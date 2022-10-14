@@ -610,7 +610,7 @@ class SDK {
         return { numItems, coinAmount }
     }
 
-    automatePoolsUpdate(period = 20, cb) {
+    async automatePoolsUpdate(period = 20, cb) {
         Object.values(this.pools).forEach(p => {
             this.automatePoolUpdate(p, period, cb)
         })
@@ -624,6 +624,7 @@ class SDK {
         await this.updatePoolTokens(p)
 
         setTimeout(async () => {
+            console.log('execitomg')
             await this.updatePoolTokens(p)
             if (cb) {
                 try {
