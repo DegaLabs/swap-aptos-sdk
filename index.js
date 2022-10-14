@@ -58,7 +58,7 @@ class SDK {
         if (Object.keys(instance.pools).length == 0) {
             await instance.updatePools();
         } else {
-            let pools = Object.values(this.pools)
+            let pools = Object.values(instance.pools)
             await Promise.all(
                 pools.map(async (p) => {
                     await instance.updatePoolTokens(p)
