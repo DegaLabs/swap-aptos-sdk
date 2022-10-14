@@ -621,11 +621,14 @@ class SDK {
             return
         }
         p.automatePoolUpdateEnabled = true
-        await this.updatePoolTokens(p)
+        this.loopUpdatePool(p, period)
+    }
 
+    async loopUpdatePool(p, period) {
+        console.log('execiting')
+        await this.updatePoolTokens(p)
         setTimeout(() => {
-            console.log('execitomg')
-            this.automatePoolUpdate(p, period)
+            this.loopUpdatePool(p, period)
         }, period * 1000)
     }
 
