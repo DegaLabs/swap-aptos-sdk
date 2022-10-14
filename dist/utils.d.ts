@@ -1,4 +1,4 @@
-export function getPoolTokenIds(walletClient: any, pool: any, collectibleSwap: any, poolAddress: any, limit: any, start: any): Promise<{
+export function getPoolTokenIds(walletClient: any, pool: any, collectibleSwap: any, poolAddress: any): Promise<{
     tokenIds: any[];
     tokenIdsForClaim: any[];
 }>;

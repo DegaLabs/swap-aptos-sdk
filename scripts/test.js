@@ -19,6 +19,7 @@ async function main() {
     //updating pools
     sdk.automatePoolsUpdate()
     setInterval(() => {
+        console.log(sdk.cacheStorage)
         console.log('last update', pools[0].lastUpdate, sdk.getPoolTokenCount(pools[0]))
     }, 10000)
     // process.exit(0)
