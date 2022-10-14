@@ -622,7 +622,8 @@ class SDK {
         }
         p.automatePoolUpdateEnabled = true
         await this.updatePoolTokens(p)
-        setInterval(async () => {
+
+        setTimeout(async () => {
             await this.updatePoolTokens(p)
             if (cb) {
                 try {
