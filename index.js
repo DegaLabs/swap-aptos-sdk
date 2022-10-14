@@ -6,7 +6,7 @@ const { TxnBuilderTypes, BCS, AptosClient, Types } = Aptos
 const curves = require('./src/curves')
 const utils = require('./src/utils')
 const BN = require('bignumber.js').default
-
+const axios = require('axios').default
 function toUTF8Array(str) {
     var utf8 = [];
     for (var i = 0; i < str.length; i++) {
@@ -39,24 +39,45 @@ function toUTF8Array(str) {
 }
 
 class SDK {
-    constructor(node_url, faucet_url, collectibleSwap, poolFee, protocolFee) {
+    constructor(network, node_url, faucet_url, collectibleSwap, poolFee, protocolFee) {
         this.wallet = new AptosWeb3.WalletClient(node_url, faucet_url)
         this.collectibleSwap = collectibleSwap
         this.poolFee = poolFee ? poolFee : 125;
         this.protocolFee = protocolFee ? protocolFee : 25
         this.FEE_DIVISOR = 10000
+        this.network = network
         this.pools = {}
     }
 
-    static async createInstance(node_url, faucet_url, collectibleSwap) {
-        let instance = new SDK(node_url, faucet_url, collectibleSwap)
+    static async createInstance(network, node_url, faucet_url, collectibleSwap, updatePool = true) {
+        let instance = new SDK(network, node_url, faucet_url, collectibleSwap)
+        instance.readPools()
         await instance.getListedCollections()
-        await instance.updatePools();
+
+        if (Object.keys(instance.pools).length == 0) {
+            await instance.updatePools();
+        }
         return instance
+    }
+
+    addPools(ps) {
+        ps.forEach(p => this.commitPool(p))
     }
 
     initializeTxBuilder(sender) {
         this.remoteTxBuilder = new Aptos.TransactionBuilderRemoteABI(this.wallet.aptosClient, { sender: sender })
+    }
+
+    async updatePoolFromType(resourceType) {
+        try {
+            let pool = await this.wallet.aptosClient.getAccountResource(this.getPoolAddress(), resourceType)
+            await this.refactorPool(pool)
+            this.pools[pool.type] = pool
+            return pool
+        } catch (e) {
+            console.log('e', this.getPoolAddress(), e)
+        }
+        return null
     }
 
     async updatePools() {
@@ -68,8 +89,10 @@ class SDK {
             ret.map(async (p) => {
                 await this.refactorPool(p)
                 this.pools[p.type] = p
+                console.log(p.type)
             })
         )
+        this.savePools()
     }
 
     getAptosAccount(mnemonicsOrPrivateKey) {
@@ -97,7 +120,7 @@ class SDK {
         let seed = "collectibleswap_resource_account_seed"
         let senderSerialized = Aptos.BCS.bcsToBytes(Aptos.TxnBuilderTypes.AccountAddress.fromHex(sender))
         let seedSerialized = toUTF8Array(seed)
-        let joined = [...senderSerialized, ...seedSerialized]
+        let joined = [...senderSerialized, ...seedSerialized, ...[255]]
 
         const hash = new SHA3(256);
 
@@ -116,7 +139,11 @@ class SDK {
         }
         let resourceType = `${this.collectibleSwap}::type_registry::TypeRegistry`
         let registryResource = await this.wallet.getAccountResource(this.collectibleSwap, resourceType)
-
+        console.log(registryResource, this.collectibleSwap, resourceType)
+        if (!registryResource) {
+            this.listedCollections = {}
+            return this.listedCollections
+        }
         registryResource = registryResource.data
         let collectionList = registryResource.collection_list
         let collectionToCollectionCoinType = {}
@@ -198,6 +225,7 @@ class SDK {
         delta,
         propertyVersion) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+        console.log("hh", coinType, collectionCoinType)
         let rawTransaction = await this.remoteTxBuilder.build(
             `${this.collectibleSwap}::pool::create_new_pool_script`,
             [coinType, collectionCoinType],
@@ -285,58 +313,72 @@ class SDK {
         await this.updatePoolTokens(p)
     }
 
+    async getPoolTokenIds(p) {
+        return await utils.getPoolTokenIds(this.wallet, p, this.collectibleSwap, this.getPoolAddress())
+    }
+
     async updatePoolTokens(p) {
-        let now = Math.floor(Date.now() / 1000)
-
-        let startTime = p.lastUpdate ? p.lastUpdate : 0
-        let start = Date.now()
-        let { tokenIds, tokenIdsForClaim } = await utils.getPoolTokenIds(this.wallet, p, this.collectibleSwap, this.getPoolAddress(), null, startTime)
-
-        let remainingTokenIdObjects = []
-
-        tokenIds.forEach(tokenIdObject => {
-            let tokenId = JSON.stringify(tokenIdObject.data)
-            let count = tokenIdObject.count
-            if (p.data.tokens[tokenId]) {
-                p.data.tokens[tokenId].count += count
-            } else {
-                remainingTokenIdObjects.push(tokenIdObject)
+        try {
+            if (p.updatingInProgress) {
+                return
             }
-        })
+            p.updatingInProgress = true
+            let now = Math.floor(Date.now() / 1000)
 
-        const func1 = async () => {
-            let tokens = await this.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjects)
-            tokens.forEach(e => {
-                p.data.tokens[JSON.stringify(e.tokenId)] = e
+            let start = Date.now()
+            let { tokenIds, tokenIdsForClaim } = await utils.getPoolTokenIds(this.wallet, p, this.collectibleSwap, this.getPoolAddress())
+
+            let remainingTokenIdObjects = []
+
+            tokenIds.forEach(tokenIdObject => {
+                let tokenId = JSON.stringify(tokenIdObject.data)
+                let count = tokenIdObject.count
+                if (p.data.tokens[tokenId]) {
+                    p.data.tokens[tokenId].count += count
+                } else {
+                    remainingTokenIdObjects.push(tokenIdObject)
+                }
             })
-        }
 
-        let remainingTokenIdObjectsForClaim = []
-
-        tokenIdsForClaim.forEach(tokenIdObject => {
-            let tokenId = JSON.stringify(tokenIdObject.data)
-            let count = tokenIdObject.count
-            console.log('tokenIdsForClaim', tokenId)
-
-            if (p.data.tokensForClaim[tokenId]) {
-                p.data.tokensForClaim[tokenId].count += count
-            } else {
-                remainingTokenIdObjectsForClaim.push(tokenIdObject)
+            const func1 = async () => {
+                let tokens = await this.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjects)
+                tokens.forEach(e => {
+                    p.data.tokens[JSON.stringify(e.tokenId)] = e
+                })
             }
-        })
 
-        const func2 = async () => {
-            let tokens = await this.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjectsForClaim)
-            tokens.forEach(e => {
-                p.data.tokensForClaim[JSON.stringify(e.tokenId)] = e
+            let remainingTokenIdObjectsForClaim = []
+
+            tokenIdsForClaim.forEach(tokenIdObject => {
+                let tokenId = JSON.stringify(tokenIdObject.data)
+                let count = tokenIdObject.count
+                console.log('tokenIdsForClaim', tokenId)
+
+                if (p.data.tokensForClaim[tokenId]) {
+                    p.data.tokensForClaim[tokenId].count += count
+                } else {
+                    remainingTokenIdObjectsForClaim.push(tokenIdObject)
+                }
             })
-        }
-        await Promise.all([func1(), func2()])
-        p.lastUpdate = now
 
-        let end = Date.now()
-        console.log("elapesed", end - start)
-        start = end
+            const func2 = async () => {
+                let tokens = await this.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjectsForClaim)
+                tokens.forEach(e => {
+                    p.data.tokensForClaim[JSON.stringify(e.tokenId)] = e
+                })
+            }
+            await Promise.all([func1(), func2()])
+            p.lastUpdate = now
+
+            let end = Date.now()
+            console.log("elapesed", end - start)
+            start = end
+            p.updatingInProgress = false
+            this.savePool(p)
+        } catch (e) {
+
+        }
+        p.updatingInProgress = false
     }
 
     getBuyInfo(collection, creator, coinType, numItems) {
@@ -463,7 +505,7 @@ class SDK {
         maxCoinAmount) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
         let rawTransaction = await this.remoteTxBuilder.build(
-            `${this.collectibleSwap}::pool::add_liquidity_script_entry2`,
+            `${this.collectibleSwap}::pool::add_liquidity_script`,
             [coinType, collectionCoinType],
             [
                 maxCoinAmount,
@@ -483,7 +525,7 @@ class SDK {
         minCoinAmount, minNFTs) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
         let rawTransaction = await this.remoteTxBuilder.build(
-            `${this.collectibleSwap}::pool::remove_liquidity_script2`,
+            `${this.collectibleSwap}::pool::remove_liquidity_script`,
             [coinType, collectionCoinType],
             [
                 minCoinAmount,
@@ -545,7 +587,7 @@ class SDK {
         let lpSupply = pool.data.lpInfo.supply
         let spotPrice = parseInt(pool.data.spot_price)
         let tokenCount = this.getPoolTokenCount(pool)
-    
+
         let numItems = lpAmount / lpSupply * tokenCount
         let coinAmount = parseInt(BN(lpAmount).multipliedBy(tokenCount).multipliedBy(spotPrice).dividedBy(lpSupply).toFixed(0))
         console.log(lpSupply, spotPrice, tokenCount, numItems, coinAmount)
@@ -555,6 +597,133 @@ class SDK {
             coinAmount -= reducedValue
         }
         return { numItems, coinAmount }
+    }
+
+    automatePoolsUpdate(period = 20, cb) {
+        Object.values(this.pools).forEach(p => {
+            this.automatePoolUpdate(p, period, cb)
+        })
+    }
+
+    async automatePoolUpdate(p, period = 20, cb) {
+        if (p.automatePoolUpdateEnabled) {
+            return
+        }
+        p.automatePoolUpdateEnabled = true
+        await this.updatePoolTokens(p)
+        setInterval(async () => {
+            await this.updatePoolTokens(p)
+            if (cb) {
+                try {
+                    cb(p)
+                } catch (e) {
+
+                }
+            }
+        }, period * 1000)
+    }
+
+    isInBrowser() {
+        return typeof window !== 'undefined'
+    }
+
+    saveData(key, value) {
+        if (this.isInBrowser()) {
+            window.localStorage.setItem(`${this.network}-${key}`, value)
+        }
+    }
+
+    savePool(p) {
+        this.saveData(`${this.network}-pool-${p.type}`, JSON.stringify(p))
+    }
+
+    commitPool(p) {
+        this.pools[p.type] = p
+        this.savePool(p)
+    }
+
+    savePools() {
+        Object.values(this.pools).forEach(e => this.savePool(e))
+    }
+
+    readPools() {
+        if (this.isInBrowser()) {
+            let pools = Object.entries(window.localStorage)
+                        .filter((k, v) => k.startsWith(`${this.network}-pool-`))
+                        map(e => JSON.parse(e.v))
+            pools.forEach(p => {
+                this.pools[p.type] = p
+            })
+            return this.pools
+        }
+
+        return {}
+    }
+
+    getData(key) {
+        if (this.isInBrowser()) {
+            return window.localStorage.getItem(key)
+        } 
+        return null
+    }
+
+    async checkForNewPools() {
+        let setting = await db.Setting.findOne({});
+        let start = setting ? setting.lastPoolCreatedEventUpdate : 0
+
+        let eventStore = `${networkConfig.collectibleSwap}::pool::NewPoolEventStore`
+
+        let now = Math.floor(Date.now() / 1000)
+
+        const poolCreatedEvents = await sdk.wallet.getEventStream(
+            sdk.getPoolAddress(),
+            eventStore,
+            "pool_created_handle",
+            null,
+            start
+        );
+
+        let resourceTypes = []
+
+        // devnet only
+        if (config.network == "devnet") {
+            resourceTypes.push(`0xd39111acba9f96a14150674b359d564e566f8057143a0593723fe753fc67c3b2::pool::Pool<0x1::aptos_coin::AptosCoin, 0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd::collection_type_clonex::CollectionTypeCloneX>`)
+        }
+
+        for (const e of poolCreatedEvents) {
+            //create simple pool
+            let coinTypeInfo = e.data.coin_type_info
+            let moduleName = Buffer.from(coinTypeInfo.module_name.replace("0x", ""), "hex").toString("utf8")
+            let structName = Buffer.from(coinTypeInfo.struct_name.replace("0x", ""), "hex").toString("utf8")
+            let coinType = `${coinTypeInfo.account_address}::${moduleName}::${structName}`
+
+            let collectionCoinTypeInfo = e.data.collection_coin_type_info
+            moduleName = Buffer.from(collectionCoinTypeInfo.module_name.replace("0x", ""), "hex").toString("utf8")
+            structName = Buffer.from(collectionCoinTypeInfo.struct_name.replace("0x", ""), "hex").toString("utf8")
+            let collectionCoinType = `${collectionCoinTypeInfo.account_address}::${moduleName}::${structName}`
+
+            let resourceType = `0x${sdk.getPoolAddress().replace("0x", "")}::pool::Pool<${coinType}, ${collectionCoinType}>`
+            resourceTypes.push(resourceType)
+        }
+
+        console.log('resourceTypes', resourceTypes)
+
+        await Promise.all(
+            resourceTypes.map(async (resourceType) => {
+                console.log('updating', resourceType)
+                let pool = await sdk.updatePoolFromType(resourceType)
+                await db.SimplePool.updateOne(
+                    { resourceType: resourceType },
+                    {
+                        $set: {
+                            poolObject: pool,
+                            lastUpdate: now
+                        }
+                    },
+                    { upsert: true, new: true }
+                )
+            })
+        )
     }
 }
 

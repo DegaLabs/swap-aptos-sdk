@@ -8,13 +8,13 @@ async function main() {
     let aptosAccount = sdk.getAptosAccount({mnemonics: mnemonics})
     let aptosCoin = "0x1::aptos_coin::AptosCoin"
     await sdk.initializeTxBuilder(aptosAccount.address())
-    let coinAmount = sdk.estimateLiquidityAddition(aptosCoin, "CloneX", "0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd", 3)
+    let coinAmount = sdk.estimateLiquidityAddition(aptosCoin, "CloneX", "0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd", 1)
     console.log('coinamoint', coinAmount)
     let txHash = await sdk.addLiquidity(
         aptosAccount,
         aptosCoin,
         "CloneX",
-        ["1", "4", "5"],
+        ["16"],
         "0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd",
         0,
         Math.round(coinAmount * 1050 / 1000)

@@ -3,53 +3,65 @@ const UTILS = {
         walletClient,
         pool,
         collectibleSwap,
-        poolAddress,
-        limit,
-        start
+        poolAddress
     ) => {
         const depositCount = {}
         const tokenDepositForClaim = {}
         let eventStore = `${collectibleSwap}::pool::EventsStore<${pool.data.coinType}, ${pool.data.collectionCoinType}>`
 
+        let start = pool.liquidityAddedEventsStart ? pool.liquidityAddedEventsStart : 0
+
         const liquidityAddedEvents = await walletClient.getEventStream(
             poolAddress,
             eventStore,
             "liquidity_added_handle",
-            limit,
+            null,
             start
         );
+        let liquidityAddedEventsStart = start + liquidityAddedEvents.length
 
+        start = pool.liquidityRemovedEventsStart ? pool.liquidityRemovedEventsStart : 0
         const liquidityRemovedEvents = await walletClient.getEventStream(
             poolAddress,
             eventStore,
             "liquidity_removed_handle",
-            limit,
+            null,
             start
         );
+        let liquidityRemovedEventsStart = start + liquidityRemovedEvents.length
+
+        start = pool.swapCoinToTokensEventsStart ? pool.swapCoinToTokensEventsStart : 0
 
         const swapCoinToTokensEvents = await walletClient.getEventStream(
             poolAddress,
             eventStore,
             "swap_coin_to_tokens_handle",
-            limit,
+            null,
             start
         );
+        let swapCoinToTokensEventsStart = start + swapCoinToTokensEvents.length
+
+        start = pool.swapTokensToCoinEventsStart ? pool.swapTokensToCoinEventsStart : 0
 
         const swapTokensToCoinEvents = await walletClient.getEventStream(
             poolAddress,
             eventStore,
             "swap_tokens_to_coin_handle",
-            limit,
+            null,
             start
         );
+        let swapTokensToCoinEventsStart = start + swapTokensToCoinEvents.length
+
+        start = pool.claimTokensEventsStart ? pool.claimTokensEventsStart : 0
 
         const claimTokensEvents = await walletClient.getEventStream(
             poolAddress,
             eventStore,
             "claim_tokens_handle",
-            limit,
+            null,
             start
         );
+        let claimTokensEventsStart = start + claimTokensEvents.length
 
         const processElement = function (element, store, push) {
             const elementString = JSON.stringify(element);
@@ -120,6 +132,12 @@ const UTILS = {
 
         inPool = inPool.filter((e) => e.count > 0)
         forClaim = forClaim.filter((e) => e.count > 0)
+
+        pool.liquidityAddedEventsStart = liquidityAddedEventsStart
+        pool.liquidityRemovedEventsStart = liquidityRemovedEventsStart
+        pool.swapCoinToTokensEventsStart = swapCoinToTokensEventsStart
+        pool.swapTokensToCoinEventsStart = swapTokensToCoinEventsStart
+        pool.claimTokensEventsStart = claimTokensEventsStart
 
         return { tokenIds: inPool, tokenIdsForClaim: forClaim };
     }
