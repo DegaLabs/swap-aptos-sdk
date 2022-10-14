@@ -641,7 +641,7 @@ class SDK {
     }
 
     savePool(p) {
-        this.saveData(`${this.network}-pool-${p.type}`, JSON.stringify(p))
+        this.saveData(`pool-${p.type}`, JSON.stringify(p))
     }
 
     commitPool(p) {
