@@ -12,14 +12,14 @@ async function main() {
     console.log('nfts', nfts)
     let payload = await sdk.createNewPoolFunctionPayload(
         "0x1::aptos_coin::AptosCoin",
-        "CloneX",
+        "GFC",
         ["1", "2", "3", "4", "5", "6", "7"],
         "0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd",
-        1000000,
-        0,
+        2000000,
+        1,
         2,
         "0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd",
-        10000,
+        20000,
         0
     )
     

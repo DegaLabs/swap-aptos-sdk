@@ -14,7 +14,7 @@ let AptosWeb3 = require('../dist/wallet_client')
 const NODE_URL = "https://fullnode.devnet.aptoslabs.com";
 const FAUCET_URL = "https://faucet.devnet.aptoslabs.com";
 
-let collectionName = "CloneX"
+let collectionName = "GFC"
 let collectionDescription = "Faucet " + collectionName
 let collectionURL = "Fake URL " + collectionName
 async function main() {

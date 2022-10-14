@@ -89,7 +89,6 @@ class SDK {
         let poolAddress = this.getPoolAddress()
         let pools = await this.wallet.aptosClient.getAccountResources(poolAddress)
         let ret = pools.filter(p => p.type.startsWith(this.poolPrefix()))
-
         await Promise.all(
             ret.map(async (p) => {
                 await this.refactorPool(p)
@@ -162,7 +161,7 @@ class SDK {
                 c)
             let moduleName = Buffer.from(coinType.module_name.replace("0x", ""), "hex").toString("utf8")
             let structName = Buffer.from(coinType.struct_name.replace("0x", ""), "hex").toString("utf8")
-            collectionToCollectionCoinType[c] = `${coinType.account_address}::${moduleName}::${structName}`
+            collectionToCollectionCoinType[JSON.stringify(c)] = `${coinType.account_address}::${moduleName}::${structName}`
         }
         this.listedCollections = collectionToCollectionCoinType
         return collectionToCollectionCoinType
@@ -173,7 +172,7 @@ class SDK {
             collection,
             creator
         }
-        return this.listedCollections[key]
+        return this.listedCollections[JSON.stringify(key)]
     }
 
     getPool(collection, creator, coinType) {
@@ -230,7 +229,6 @@ class SDK {
         delta,
         propertyVersion) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
-        console.log("hh", coinType, collectionCoinType)
         let rawTransaction = await this.remoteTxBuilder.build(
             `${this.collectibleSwap}::pool::create_new_pool_script`,
             [coinType, collectionCoinType],
@@ -294,6 +292,7 @@ class SDK {
 
     async refactorPool(p) {
         let type = p.type
+        console.log('type', p.type)
         let splits = type.split(",")
         let prefix = this.poolPrefix()
         let coinType = splits[0].substring(prefix.length)
