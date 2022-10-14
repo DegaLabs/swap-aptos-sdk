@@ -650,7 +650,7 @@ class SDK {
         if (this.isInBrowser()) {
             let pools = Object.entries(window.localStorage)
                         .filter(([k, v]) => k.startsWith(`${this.network}-pool-`))
-                        map(e => JSON.parse(e[1]))
+                        .map(e => JSON.parse(e[1]))
             pools.forEach(p => {
                 this.pools[p.type] = p
             })
