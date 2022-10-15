@@ -61,6 +61,8 @@ class SDK {
             let pools = Object.values(instance.pools)
             await Promise.all(
                 pools.map(async (p) => {
+                    console.log("hh")
+                    p.automatePoolUpdateEnabled = false
                     await instance.updatePoolTokens(p)
                 })
             )
