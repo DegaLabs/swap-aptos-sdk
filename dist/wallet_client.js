@@ -654,6 +654,7 @@ class WalletClient {
                     cache.set(cacheKey, token);
                 }
                 token.collection = tokenId.data.token_data_id.collection;
+                token.tokenId = tokenId;
                 tokens.push({ token, sequence_number: tokenId.sequence_number });
             }
             catch (e) {

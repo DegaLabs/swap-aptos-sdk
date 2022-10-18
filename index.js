@@ -248,17 +248,8 @@ class SDK {
     }
 
     getPoolsForCollection(collection, creator) {
-        let collectionCoinType = this.getCollectionCoinType(collection, creator)
-
-        const isGoodPool = function (p) {
-            let type = p.type
-            let splits = type.split(",")
-            if (splits.length == 2) {
-                let second = splits[1].trim()
-                let ret = second.toLowerCase() == `${collectionCoinType}>`.toLowerCase()
-                return ret
-            }
-            return false
+        const isGoodPool = function (pool) {
+            return pool.data.collection == collection && pool.data.token_creator == creator
         }
         return Object.values(this.pools).filter(p => isGoodPool(p))
     }
@@ -531,6 +522,18 @@ class SDK {
             return { errorCode, newSpotPrice, newDelta, inputValue, protocolFee, tradeFee, unrealizedFee }
         }
         return null
+    }
+
+    getSellLiquidity(collection, creator, numItems) {
+        let poolsForCollection = this.getPoolsForCollection(collection, creator)
+        let ret = []
+        for (const p of poolsForCollection) {
+            let coinType = p.data.coinType
+            let sellInfo = this.getSellInfo(collection, creator, coinType, numItems)
+            let coinInfo = p.data.coinInfo
+            ret.push({ coinType, sellInfo, coinInfo })
+        }
+        return ret
     }
 
     getSellInfo(collection, creator, coinType, numItems) {
