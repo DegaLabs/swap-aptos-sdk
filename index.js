@@ -611,13 +611,13 @@ class SDK {
         collection, tokenCreator, names, propertyVersion, coinType, slippage
     ) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
-        let { inputValue } = this.getSellInfo(collection, tokenCreator, coinType, names.length)
+        let { outputValue } = this.getSellInfo(collection, tokenCreator, coinType, names.length)
         let rawTransaction = await this.remoteTxBuilder.build(
             `${this.collectibleSwap}::pool::swap_tokens_to_coin_script`,
             [coinType, collectionCoinType],
             [
                 names,
-                Math.floor(inputValue * (1000 - slippage) / 1000),
+                Math.floor(outputValue * (1000 - slippage) / 1000),
                 propertyVersion
             ]
         )
