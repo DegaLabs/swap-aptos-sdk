@@ -13,8 +13,8 @@ async function main() {
     let txHash = await sdk.addLiquidity(
         aptosAccount,
         aptosCoin,
-        "CloneX",
-        ["15"],
+        "GFC",
+        ["18"],
         "0xad73baea5ef67a1b52352ee2f781a132cfe6b9bdec544a5b55ef1b4557bfc5fd",
         0,
         Math.round(coinAmount * 1050 / 1000)

@@ -7,6 +7,8 @@ const curves = require('./src/curves')
 const utils = require('./src/utils')
 const BN = require('bignumber.js').default
 const axios = require('axios').default
+const helper = require('./src/helper')
+const Helper = require('./src/helper')
 function toUTF8Array(str) {
     var utf8 = [];
     for (var i = 0; i < str.length; i++) {
@@ -70,6 +72,33 @@ class SDK {
         return instance
     }
 
+    static async createInstanceWithPools(network, node_url, faucet_url, collectibleSwap, pools, cbForPoolUpdate) {
+        let instance = new SDK(network, node_url, faucet_url, collectibleSwap)
+        instance.setCallback(cbForPoolUpdate)
+        pools.forEach(pool => {
+            instance.pools[pool.type] = pool
+        })
+
+        await instance.getListedCollections()
+
+        if (Object.keys(instance.pools).length == 0) {
+            await instance.updatePools();
+        } else {
+            let pools = Object.values(instance.pools)
+            await Promise.all(
+                pools.map(async (p) => {
+                    p.automatePoolUpdateEnabled = false
+                    await instance.updatePoolTokens(p)
+                })
+            )
+        }
+        return instance
+    }
+
+    setCallback(cbForPoolUpdate) {
+        this.cbForPoolUpdate = cbForPoolUpdate
+    }
+
     addPools(ps) {
         ps.forEach(p => this.commitPool(p))
     }
@@ -96,7 +125,11 @@ class SDK {
 
     async updatePools() {
         let poolAddress = this.getPoolAddress()
-        let pools = await this.wallet.aptosClient.getAccountResources(poolAddress)
+        let obj = this
+        let pools = await Helper.tryCallWithTrial(async function () {
+            return await obj.wallet.aptosClient.getAccountResources(poolAddress)
+        })
+        pools = pools ? pools : []
         let ret = pools.filter(p => p.type.startsWith(this.poolPrefix()))
         await Promise.all(
             ret.map(async (p) => {
@@ -116,7 +149,11 @@ class SDK {
     }
 
     async getOwnedCollections(addr, limit, depositStart, withdrawStart) {
-        let nfts = await this.wallet.getTokens(addr, limit, depositStart, withdrawStart)
+        let obj = this
+        let nfts = await Helper.tryCallWithTrial(async function () {
+            return await obj.wallet.getTokens(addr, limit, depositStart, withdrawStart)
+        })
+        nfts = nfts ? nfts : []
         let collections = {}
         nfts.forEach(t => {
             let e = t.token
@@ -150,30 +187,38 @@ class SDK {
         if (this.listedCollections) {
             return this.listedCollections
         }
-        let resourceType = `${this.collectibleSwap}::type_registry::TypeRegistry`
-        let registryResource = await this.wallet.getAccountResource(this.collectibleSwap, resourceType)
-        console.log(registryResource, this.collectibleSwap, resourceType)
-        if (!registryResource) {
-            this.listedCollections = {}
-            return this.listedCollections
+        let obj = this
+        const func = async function () {
+            let resourceType = `${obj.collectibleSwap}::type_registry::TypeRegistry`
+            console.log('resourceType', resourceType)
+            let registryResource = await obj.wallet.getAccountResource(obj.collectibleSwap, resourceType)
+            console.log(registryResource, obj.collectibleSwap, resourceType)
+            if (!registryResource) {
+                obj.listedCollections = {}
+                return obj.listedCollections
+            }
+            registryResource = registryResource.data
+            let collectionList = registryResource.collection_list
+            let collectionToCollectionCoinType = {}
+            for (const c of collectionList) {
+                let coinType = await obj.wallet.getCustomResource(
+                    obj.collectibleSwap,
+                    resourceType,
+                    "collection_to_cointype",
+                    `${obj.collectibleSwap}::type_registry::CollectionCoinType`,
+                    "0x1::type_info::TypeInfo",
+                    c)
+                let moduleName = Buffer.from(coinType.module_name.replace("0x", ""), "hex").toString("utf8")
+                let structName = Buffer.from(coinType.struct_name.replace("0x", ""), "hex").toString("utf8")
+                collectionToCollectionCoinType[JSON.stringify(c)] = `${coinType.account_address}::${moduleName}::${structName}`
+            }
+            obj.listedCollections = collectionToCollectionCoinType
+            return collectionToCollectionCoinType
         }
-        registryResource = registryResource.data
-        let collectionList = registryResource.collection_list
-        let collectionToCollectionCoinType = {}
-        for (const c of collectionList) {
-            let coinType = await this.wallet.getCustomResource(
-                this.collectibleSwap,
-                resourceType,
-                "collection_to_cointype",
-                `${this.collectibleSwap}::type_registry::CollectionCoinType`,
-                "0x1::type_info::TypeInfo",
-                c)
-            let moduleName = Buffer.from(coinType.module_name.replace("0x", ""), "hex").toString("utf8")
-            let structName = Buffer.from(coinType.struct_name.replace("0x", ""), "hex").toString("utf8")
-            collectionToCollectionCoinType[JSON.stringify(c)] = `${coinType.account_address}::${moduleName}::${structName}`
-        }
-        this.listedCollections = collectionToCollectionCoinType
-        return collectionToCollectionCoinType
+
+        let ret = await Helper.tryCallWithTrial(func)
+        ret = ret ? ret : {}
+        return ret
     }
 
     getCollectionCoinType(collection, creator) {
@@ -327,71 +372,82 @@ class SDK {
     }
 
     async getPoolTokenIds(p) {
-        return await utils.getPoolTokenIds(this.wallet, p, this.collectibleSwap, this.getPoolAddress())
+        let obj = this
+        let ret = await Helper.tryCallWithTrial(async function () {
+            await utils.getPoolTokenIds(obj.wallet, p, obj.collectibleSwap, obj.getPoolAddress())
+        })
+        return ret
     }
 
     async updatePoolTokens(p) {
-        try {
-            if (p.updatingInProgress) {
-                return
-            }
-            p.updatingInProgress = true
-            let now = Math.floor(Date.now() / 1000)
-
-            let start = Date.now()
-            let { tokenIds, tokenIdsForClaim } = await utils.getPoolTokenIds(this.wallet, p, this.collectibleSwap, this.getPoolAddress())
-
-            let remainingTokenIdObjects = []
-
-            tokenIds.forEach(tokenIdObject => {
-                let tokenId = JSON.stringify(tokenIdObject.data)
-                let count = tokenIdObject.count
-                if (p.data.tokens[tokenId]) {
-                    p.data.tokens[tokenId].count += count
-                } else {
-                    remainingTokenIdObjects.push(tokenIdObject)
+        let obj = this
+        const update = async function () {
+            console.log("updating pools", p.type)
+            try {
+                if (p.updatingInProgress) {
+                    return
                 }
-            })
+                p.updatingInProgress = true
+                let now = Math.floor(Date.now() / 1000)
 
-            const func1 = async () => {
-                let tokens = await this.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjects)
-                tokens.forEach(e => {
-                    p.data.tokens[JSON.stringify(e.tokenId)] = e
+                let start = Date.now()
+                let { tokenIds, tokenIdsForClaim } = await utils.getPoolTokenIds(obj.wallet, p, obj.collectibleSwap, obj.getPoolAddress())
+                tokenIds = tokenIds ? tokenIds : []
+                tokenIdsForClaim = tokenIdsForClaim ? tokenIdsForClaim : []
+
+                let remainingTokenIdObjects = []
+
+                tokenIds.forEach(tokenIdObject => {
+                    let tokenId = JSON.stringify(tokenIdObject.data)
+                    let count = tokenIdObject.count
+                    if (p.data.tokens[tokenId]) {
+                        p.data.tokens[tokenId].count += count
+                    } else {
+                        remainingTokenIdObjects.push(tokenIdObject)
+                    }
                 })
-            }
 
-            let remainingTokenIdObjectsForClaim = []
-
-            tokenIdsForClaim.forEach(tokenIdObject => {
-                let tokenId = JSON.stringify(tokenIdObject.data)
-                let count = tokenIdObject.count
-                console.log('tokenIdsForClaim', tokenId)
-
-                if (p.data.tokensForClaim[tokenId]) {
-                    p.data.tokensForClaim[tokenId].count += count
-                } else {
-                    remainingTokenIdObjectsForClaim.push(tokenIdObject)
+                const func1 = async () => {
+                    let tokens = await obj.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjects)
+                    tokens.forEach(e => {
+                        p.data.tokens[JSON.stringify(e.tokenId)] = e
+                    })
                 }
-            })
 
-            const func2 = async () => {
-                let tokens = await this.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjectsForClaim)
-                tokens.forEach(e => {
-                    p.data.tokensForClaim[JSON.stringify(e.tokenId)] = e
+                let remainingTokenIdObjectsForClaim = []
+
+                tokenIdsForClaim.forEach(tokenIdObject => {
+                    let tokenId = JSON.stringify(tokenIdObject.data)
+                    let count = tokenIdObject.count
+
+                    if (p.data.tokensForClaim[tokenId]) {
+                        p.data.tokensForClaim[tokenId].count += count
+                    } else {
+                        remainingTokenIdObjectsForClaim.push(tokenIdObject)
+                    }
                 })
-            }
-            await Promise.all([func1(), func2()])
-            p.lastUpdate = now
 
-            let end = Date.now()
-            console.log("elapesed", end - start)
-            start = end
+                const func2 = async () => {
+                    let tokens = await obj.wallet.getTokensFromTokenIdsWithCount(remainingTokenIdObjectsForClaim)
+                    tokens.forEach(e => {
+                        p.data.tokensForClaim[JSON.stringify(e.tokenId)] = e
+                    })
+                }
+                await Promise.all([func1(), func2()])
+                p.lastUpdate = now
+
+                let end = Date.now()
+                console.log("elapesed", end - start)
+                start = end
+                p.updatingInProgress = false
+                obj.savePool(p)
+            } catch (e) {
+                console.log('e', e)
+            }
             p.updatingInProgress = false
-            this.savePool(p)
-        } catch (e) {
-
         }
-        p.updatingInProgress = false
+
+        await Helper.tryCallWithTrial(update)
     }
 
     getBuyInfo(collection, creator, coinType, numItems) {
@@ -538,7 +594,7 @@ class SDK {
         minCoinAmount, minNFTs) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
         let rawTransaction = await this.remoteTxBuilder.build(
-            `${this.collectibleSwap}::pool::remove_liquidity_script`,
+            `${this.collectibleSwap}::pool::remove_liquidity_script2`,
             [coinType, collectionCoinType],
             [
                 minCoinAmount,
@@ -556,6 +612,24 @@ class SDK {
             currentTokenCountInPool += e.count
         })
         return currentTokenCountInPool
+    }
+
+    static getTokenCountOfPool(pool) {
+        let currentTokenCountInPool = 0
+        Object.values(pool.data.tokens).forEach(e => {
+            currentTokenCountInPool += e.count
+        })
+        return currentTokenCountInPool
+    }
+
+    static getTokenNameList(pool) {
+        let ret = []
+        Object.values(pool.data.tokens).forEach(e => {
+            if (e.count > 0) {
+                ret.push(e.tokenId.data.token_data_id.name)
+            }
+        })
+        return ret
     }
 
     async addLiquidity(aptosAccount,
@@ -647,6 +721,9 @@ class SDK {
     }
 
     savePool(p) {
+        if (this.cbForPoolUpdate) {
+            this.cbForPoolUpdate(p)
+        }
         this.saveData(`pool-${p.type}`, JSON.stringify(p))
     }
 
@@ -680,22 +757,28 @@ class SDK {
         return null
     }
 
-    async checkForNewPools() {
+    async checkForNewPools(period = 20) {
+        let obj = this
         let poolCreatedEventStart = this.getData(`poolCreatedEventStart`)
         poolCreatedEventStart = poolCreatedEventStart ? parseInt(poolCreatedEventStart) : 0
 
         let eventStore = `${this.collectibleSwap}::pool::NewPoolEventStore`
 
         console.log('poolCreatedEventStart', poolCreatedEventStart)
-
-        const poolCreatedEvents = await this.wallet.getEventStream(
-            this.getPoolAddress(),
-            eventStore,
-            "pool_created_handle",
-            null,
-            poolCreatedEventStart
-        );
-        poolCreatedEventStart += poolCreatedEvents.length
+        const getPoolCreatedEvents = async function () {
+            let ret = await obj.wallet.getEventStream(
+                obj.getPoolAddress(),
+                eventStore,
+                "pool_created_handle",
+                null,
+                poolCreatedEventStart
+            );
+            console.log("Ret", ret)
+            return ret ? ret : []
+        }
+        let poolCreatedEvents = await Helper.tryCallWithTrial(getPoolCreatedEvents)
+        poolCreatedEvents = poolCreatedEvents ? poolCreatedEvents : []
+        poolCreatedEventStart += poolCreatedEvents ? poolCreatedEvents.length : 0
 
         let resourceTypes = []
 
@@ -729,8 +812,8 @@ class SDK {
 
         this.saveData(`poolCreatedEventStart`, poolCreatedEventStart)
         setTimeout(() => {
-            this.checkForNewPools()
-        }, 20 * 1000)
+            this.checkForNewPools(period)
+        }, period * 1000)
     }
 }
 
