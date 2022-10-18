@@ -426,7 +426,7 @@ class SDK {
             p.data.accumulated_volume = poolMetadata.data.accumulated_volume
             p.data.last_block_timestamp = poolMetadata.data.last_block_timestamp
             p.data.last_price_cumulative = poolMetadata.data.last_price_cumulative
-            p.data.reserve = poolMetadata.data.reserve
+            p.data.reserve = poolMetadata.data.reserve.value
             p.data.spot_price = poolMetadata.data.spot_price
             console.log("Spot price updated:", p.data.spot_price)
         }
