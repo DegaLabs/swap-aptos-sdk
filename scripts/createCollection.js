@@ -11,8 +11,8 @@ const getMnemonics = require('./getMnemonics')
 let AptosWeb3 = require('../dist/wallet_client')
 
 // devnet is used here for testing
-const NODE_URL = "https://fullnode.devnet.aptoslabs.com";
-const FAUCET_URL = "https://faucet.devnet.aptoslabs.com";
+const NODE_URL = "https://fullnode.testnet.aptoslabs.com";
+const FAUCET_URL = "https://faucet.testnet.aptoslabs.com";
 
 let collectionName = "GFC"
 let collectionDescription = "Faucet " + collectionName

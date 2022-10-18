@@ -302,6 +302,37 @@ class SDK {
         return rawTransaction.payload
     }
 
+    async createNewPoolFunctionPayloadAdapter(
+        coinType,
+        collection,
+        tokenNames,
+        tokenCreator,
+        initialPrice,
+        curveType,
+        poolType,
+        assetRecipient,
+        delta,
+        propertyVersion) {
+        let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+
+        return Types.TransactionPayload = {
+            type: 'entry_function_payload',
+            function: `${this.collectibleSwap}::pool::create_new_pool_script`,
+            type_arguments: [coinType, collectionCoinType],
+            arguments: [
+                collection,
+                tokenNames,
+                tokenCreator,
+                initialPrice,
+                curveType,
+                poolType,
+                assetRecipient,
+                delta,
+                propertyVersion
+            ]
+        }
+    }
+
     async createNewPool(
         aptosAccount,
         coinType,
@@ -537,6 +568,24 @@ class SDK {
         return rawTransaction.payload
     }
 
+    async createBuyNFTsFunctionPayloadAdapter(
+        collection, tokenCreator, names, propertyVersion, coinType, slippage
+    ) {
+        let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+        let { inputValue } = this.getBuyInfo(collection, tokenCreator, coinType, names.length)
+
+        return Types.TransactionPayload = {
+            type: 'entry_function_payload',
+            function: `${this.collectibleSwap}::pool::swap_coin_to_specific_tokens_script`,
+            type_arguments: [coinType, collectionCoinType],
+            arguments: [
+                names,
+                propertyVersion,
+                Math.round(inputValue * (1000 + slippage) / 1000)
+            ]
+        }
+    }
+
     async createSellNFTsFunctionPayload(
         collection, tokenCreator, names, propertyVersion, coinType, slippage
     ) {
@@ -553,6 +602,23 @@ class SDK {
         )
 
         return rawTransaction.payload
+    }
+
+    async createSellNFTsFunctionPayloadAdapter(
+        collection, tokenCreator, names, propertyVersion, coinType, slippage
+    ) {
+        let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+        let { inputValue } = this.getSellInfo(collection, tokenCreator, coinType, names.length)
+        return Types.TransactionPayload = {
+            type: 'entry_function_payload',
+            function: `${this.collectibleSwap}::pool::swap_tokens_to_coin_script`,
+            type_arguments: [coinType, collectionCoinType],
+            arguments: [
+                names,
+                Math.floor(inputValue * (1000 - slippage) / 1000),
+                propertyVersion
+            ]
+        }
     }
 
     async buyNFTs(aptosAccount, collection, creator, names, propertyVersion, coinType, slippage) {
@@ -586,6 +652,26 @@ class SDK {
         return rawTransaction.payload
     }
 
+    async createAddLiquidityFunctionPayloadAdapter(
+        coinType,
+        collection,
+        tokenNames,
+        tokenCreator,
+        propertyVersion,
+        maxCoinAmount) {
+        let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+        return Types.TransactionPayload = {
+            type: 'entry_function_payload',
+            function: `${this.collectibleSwap}::pool::add_liquidity_script`,
+            type_arguments: [coinType, collectionCoinType],
+            arguments: [
+                maxCoinAmount,
+                tokenNames,
+                propertyVersion
+            ]
+        }
+    }
+
     async createRemoveLiquidityFunctionPayload(
         coinType,
         collection,
@@ -604,6 +690,25 @@ class SDK {
         )
 
         return rawTransaction.payload
+    }
+
+    async createRemoveLiquidityFunctionPayloadAdapter(
+        coinType,
+        collection,
+        tokenCreator,
+        lpAmount,
+        minCoinAmount, minNFTs) {
+        let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+        return Types.TransactionPayload = {
+            type: 'entry_function_payload',
+            function: `${this.collectibleSwap}::pool::remove_liquidity_script2`,
+            type_arguments: [coinType, collectionCoinType],
+            arguments: [
+                minCoinAmount,
+                minNFTs,
+                lpAmount
+            ]
+        }
     }
 
     getPoolTokenCount(pool) {
