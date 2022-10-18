@@ -542,8 +542,8 @@ class SDK {
             let errorCode = 0
             let newSpotPrice = pool.data.spot_price
             let newDelta = pool.data.delta
-            let inputValue = 0
-            let subInputValue = 0
+            let outputValue = 0
+            let subOutValue = 0
             let protocolFee = 0
             let subProtocolFee = 0
             let tradeFee = 0
@@ -556,17 +556,17 @@ class SDK {
 
             let i = 0;
             while (i < numItems) {
-                [errorCode, newSpotPrice, newDelta, subInputValue, subProtocolFee, subTradeFee] = curves.getSellInfo(pool.data.curve_type, newSpotPrice, newDelta, 1, parseInt(this.poolFee), this.protocolFee)
+                [errorCode, newSpotPrice, newDelta, subOutValue, subProtocolFee, subTradeFee] = curves.getSellInfo(pool.data.curve_type, newSpotPrice, newDelta, 1, parseInt(this.poolFee), this.protocolFee)
 
                 tradeFee = parseInt(tradeFee) + parseInt(subTradeFee)
                 protocolFee = parseInt(protocolFee) + parseInt(subProtocolFee)
-                inputValue = parseInt(inputValue) + parseInt(subInputValue)
+                outputValue = parseInt(outputValue) + parseInt(subOutValue)
                 let priceIncrease = Math.floor((parseInt(subTradeFee) + parseInt(unrealizedFee)) / (currentTokenCountInPool - (i + 1)))
                 unrealizedFee = (parseInt(subTradeFee) + parseInt(unrealizedFee)) - (currentTokenCountInPool - (i + 1)) * priceIncrease;
                 newSpotPrice = parseInt(newSpotPrice) + priceIncrease;
                 i = i + 1
             }
-            return { errorCode, newSpotPrice, newDelta, inputValue, protocolFee, tradeFee, unrealizedFee }
+            return { errorCode, newSpotPrice, newDelta, outputValue, protocolFee, tradeFee, unrealizedFee }
         }
         return null
     }
