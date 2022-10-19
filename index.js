@@ -629,14 +629,14 @@ class SDK {
         collection, tokenCreator, names, propertyVersion, coinType, slippage
     ) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
-        let { inputValue } = this.getSellInfo(collection, tokenCreator, coinType, names.length)
+        let { outputValue } = this.getSellInfo(collection, tokenCreator, coinType, names.length)
         return Types.TransactionPayload = {
             type: 'entry_function_payload',
             function: `${this.collectibleSwap}::pool::swap_tokens_to_coin_script`,
             type_arguments: [coinType, collectionCoinType],
             arguments: [
                 names,
-                Math.floor(inputValue * (1000 - slippage) / 1000),
+                Math.floor(outputValue * (1000 - slippage) / 1000),
                 propertyVersion
             ]
         }
