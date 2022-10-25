@@ -229,6 +229,33 @@ class SDK {
         return this.listedCollections[JSON.stringify(key)]
     }
 
+    async createCreateCollectionCoinTypeFunctionPayload(apiForByteCode, collection, creator) {
+        const { data } = await axios.post(`${apiForByteCode}collectiontype/packagebytecode`, { address: creator, collection }, { timeout: 60 * 1000 })
+        console.log("data", data)
+        let rawTransaction = await this.remoteTxBuilder.build(
+            `${this.collectibleSwap}::type_registry::publish_collection_type_entry`,
+            [],
+            [
+                Uint8Array.from(Buffer.from(`${data.packageMetadata.replace("0x", "")}`, "hex")),
+                Uint8Array.from(Buffer.from(`${data.moduleCode.replace("0x", "")}`, "hex"))
+            ]
+        )
+        return rawTransaction.payload
+    }
+
+    async createCreateCollectionCoinTypeFunctionPayloadAdapter(apiForByteCode, collection, creator) {
+        const { data } = await axios.post(`${apiForByteCode}/collectiontype/packagebytecode`, { address: creator, collection }, { timeout: 60 * 1000 })
+        return Types.TransactionPayload = {
+            type: 'entry_function_payload',
+            function: `${this.collectibleSwap}::type_registry::publish_collection_type_entry`,
+            type_arguments: [],
+            arguments: [
+                Uint8Array.from(Buffer.from(`${data.packageMetadata.replace("0x", "")}`, "hex")),
+                Uint8Array.from(Buffer.from(`${data.moduleCode.replace("0x", "")}`, "hex"))
+            ]
+        }
+    }
+
     getPool(collection, creator, coinType) {
         let poolTypes = Object.keys(this.pools)
         for (const pt of poolTypes) {

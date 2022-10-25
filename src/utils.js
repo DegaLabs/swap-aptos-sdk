@@ -22,7 +22,7 @@ const UTILS = {
                 start
             )
         })
-        liquidityAddedEvents = liquidityAddedEvents ? liquidityAddedEvents : []
+        liquidityAddedEvents = Array.isArray(liquidityAddedEvents) ? liquidityAddedEvents : []
         let liquidityAddedEventsStart = start + liquidityAddedEvents.length
 
         start = pool.liquidityRemovedEventsStart ? pool.liquidityRemovedEventsStart : 0
@@ -35,7 +35,7 @@ const UTILS = {
                 start
             )
         });
-        liquidityRemovedEvents = liquidityRemovedEvents ? liquidityRemovedEvents : []
+        liquidityRemovedEvents = Array.isArray(liquidityRemovedEvents) ? liquidityRemovedEvents : []
         let liquidityRemovedEventsStart = start + liquidityRemovedEvents.length
 
         start = pool.swapCoinToTokensEventsStart ? pool.swapCoinToTokensEventsStart : 0
@@ -49,7 +49,7 @@ const UTILS = {
                 start
             )
         });
-        swapCoinToTokensEvents = swapCoinToTokensEvents ? swapCoinToTokensEvents : []
+        swapCoinToTokensEvents = Array.isArray(swapCoinToTokensEvents) ? swapCoinToTokensEvents : []
         let swapCoinToTokensEventsStart = start + swapCoinToTokensEvents.length
 
         start = pool.swapTokensToCoinEventsStart ? pool.swapTokensToCoinEventsStart : 0
@@ -63,7 +63,7 @@ const UTILS = {
                 start
             )
         });
-        swapTokensToCoinEvents = swapTokensToCoinEvents ? swapTokensToCoinEvents: []
+        swapTokensToCoinEvents = Array.isArray(swapTokensToCoinEvents) ? swapTokensToCoinEvents: []
         let swapTokensToCoinEventsStart = start + swapTokensToCoinEvents.length
 
         start = pool.claimTokensEventsStart ? pool.claimTokensEventsStart : 0
@@ -77,7 +77,7 @@ const UTILS = {
                 start
             )
         });
-        claimTokensEvents = claimTokensEvents ? claimTokensEvents : []
+        claimTokensEvents = Array.isArray(claimTokensEvents) ? claimTokensEvents : []
         let claimTokensEventsStart = start + claimTokensEvents.length
 
         const processElement = function (element, store, push) {
