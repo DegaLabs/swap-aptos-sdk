@@ -8,31 +8,31 @@ const UTILS = {
         let liquidityAddedEvents = await Helper.tryCallWithTrial(async function () {
             return await walletClient.getEventStream(poolAddress, eventStore, "liquidity_added_handle", null, start);
         });
-        liquidityAddedEvents = liquidityAddedEvents ? liquidityAddedEvents : [];
+        liquidityAddedEvents = Array.isArray(liquidityAddedEvents) ? liquidityAddedEvents : [];
         let liquidityAddedEventsStart = start + liquidityAddedEvents.length;
         start = pool.liquidityRemovedEventsStart ? pool.liquidityRemovedEventsStart : 0;
         let liquidityRemovedEvents = await Helper.tryCallWithTrial(async function () {
             return await walletClient.getEventStream(poolAddress, eventStore, "liquidity_removed_handle", null, start);
         });
-        liquidityRemovedEvents = liquidityRemovedEvents ? liquidityRemovedEvents : [];
+        liquidityRemovedEvents = Array.isArray(liquidityRemovedEvents) ? liquidityRemovedEvents : [];
         let liquidityRemovedEventsStart = start + liquidityRemovedEvents.length;
         start = pool.swapCoinToTokensEventsStart ? pool.swapCoinToTokensEventsStart : 0;
         let swapCoinToTokensEvents = await Helper.tryCallWithTrial(async function () {
             return await walletClient.getEventStream(poolAddress, eventStore, "swap_coin_to_tokens_handle", null, start);
         });
-        swapCoinToTokensEvents = swapCoinToTokensEvents ? swapCoinToTokensEvents : [];
+        swapCoinToTokensEvents = Array.isArray(swapCoinToTokensEvents) ? swapCoinToTokensEvents : [];
         let swapCoinToTokensEventsStart = start + swapCoinToTokensEvents.length;
         start = pool.swapTokensToCoinEventsStart ? pool.swapTokensToCoinEventsStart : 0;
         let swapTokensToCoinEvents = await Helper.tryCallWithTrial(async function () {
             return await walletClient.getEventStream(poolAddress, eventStore, "swap_tokens_to_coin_handle", null, start);
         });
-        swapTokensToCoinEvents = swapTokensToCoinEvents ? swapTokensToCoinEvents : [];
+        swapTokensToCoinEvents = Array.isArray(swapTokensToCoinEvents) ? swapTokensToCoinEvents : [];
         let swapTokensToCoinEventsStart = start + swapTokensToCoinEvents.length;
         start = pool.claimTokensEventsStart ? pool.claimTokensEventsStart : 0;
         let claimTokensEvents = await Helper.tryCallWithTrial(async function () {
             return await walletClient.getEventStream(poolAddress, eventStore, "claim_tokens_handle", null, start);
         });
-        claimTokensEvents = claimTokensEvents ? claimTokensEvents : [];
+        claimTokensEvents = Array.isArray(claimTokensEvents) ? claimTokensEvents : [];
         let claimTokensEventsStart = start + claimTokensEvents.length;
         const processElement = function (element, store, push) {
             const elementString = JSON.stringify(element);

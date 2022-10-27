@@ -250,8 +250,8 @@ class SDK {
             function: `${this.collectibleSwap}::type_registry::publish_collection_type_entry`,
             type_arguments: [],
             arguments: [
-                Uint8Array.from(Buffer.from(`${data.packageMetadata.replace("0x", "")}`, "hex")),
-                Uint8Array.from(Buffer.from(`${data.moduleCode.replace("0x", "")}`, "hex"))
+                `0x${data.packageMetadata.replace("0x", "")}`,
+                `0x${data.moduleCode.replace("0x", "")}`
             ]
         }
     }
