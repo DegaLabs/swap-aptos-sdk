@@ -58,7 +58,9 @@ class SDK {
         await instance.getListedCollections()
 
         if (Object.keys(instance.pools).length == 0) {
-            await instance.updatePools();
+            if (updatePool) {
+                await instance.updatePools();
+            }
         } else {
             let pools = Object.values(instance.pools)
             await Promise.all(
@@ -245,15 +247,17 @@ class SDK {
 
     async createCreateCollectionCoinTypeFunctionPayloadAdapter(apiForByteCode, collection, creator) {
         const { data } = await axios.post(`${apiForByteCode}/collectiontype/packagebytecode`, { address: creator, collection }, { timeout: 60 * 1000 })
-        return Types.TransactionPayload = {
+        const args = [
+            `${data.packageMetadata.replace("0x", "")}`,
+            `${data.moduleCode.replace("0x", "")}`
+        ]
+        const ret = Types.TransactionPayload = {
             type: 'entry_function_payload',
-            function: `${this.collectibleSwap}::type_registry::publish_collection_type_entry`,
+            function: `${this.collectibleSwap}::type_registry::publish_collection_type_entry_2`,
             type_arguments: [],
-            arguments: [
-                `0x${data.packageMetadata.replace("0x", "")}`,
-                `0x${data.moduleCode.replace("0x", "")}`
-            ]
+            arguments: args
         }
+        return ret
     }
 
     getPool(collection, creator, coinType) {
@@ -301,6 +305,38 @@ class SDK {
         delta,
         propertyVersion) {
         let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
+        let rawTransaction = await this.remoteTxBuilder.build(
+            `${this.collectibleSwap}::pool::create_new_pool_script`,
+            [coinType, collectionCoinType],
+            [
+                collection,
+                tokenNames,
+                tokenCreator,
+                initialPrice,
+                curveType,
+                poolType,
+                assetRecipient,
+                delta,
+                propertyVersion
+            ]
+        )
+
+        return rawTransaction.payload
+    }
+
+    async createNewPoolFunctionPayloadƯithCollectionType(
+        collectionCoinType,
+        coinType,
+        collection,
+        tokenNames,
+        tokenCreator,
+        initialPrice,
+        curveType,
+        poolType,
+        assetRecipient,
+        delta,
+        propertyVersion) {
+        // let collectionCoinType = this.getCollectionCoinType(collection, tokenCreator)
         let rawTransaction = await this.remoteTxBuilder.build(
             `${this.collectibleSwap}::pool::create_new_pool_script`,
             [coinType, collectionCoinType],
