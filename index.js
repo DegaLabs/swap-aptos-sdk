@@ -324,7 +324,7 @@ class SDK {
         return rawTransaction.payload
     }
 
-    async createNewPoolFunctionPayloadƯithCollectionType(
+    async createNewPoolFunctionPayloadWithCollectionType(
         collectionCoinType,
         coinType,
         collection,
